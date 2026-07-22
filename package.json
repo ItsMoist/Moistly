@@ -9,9 +9,9 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "ganache": "ganache  --mnemonic 'survey round advance myth torch health boost embrace bacon expect circle kid' --unlock 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4 --unlock 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2 --unlock 0xCA35b7d915458EF540aDe6068dFe2F44E8fa733c --unlock 0x14723A09ACff6D2A60DcDF7aA4AFf308FDDC160C --unlock 0x4B0897b0513fdc7C541B6d9D7E929C4e5364D2dB --unlock 0x583031D1113aD414F02576BD6afaBfb302140225 --unlock 0xdD870fA1b7C4700F2BD7f44238821C26f7392148 --unlock 0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199 --unlock 0x90F79bf6EB2c4f870365E785982E1f101E93b906 --unlock 0xFFcf8FDEE72ac11b5c542428B35EEF5769C409f0",
+    "ganache": "ganache  --mnemonic --unlock 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4 --unlock 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2 --unlock 0xCA35b7d915458EF540aDe6068dFe2F44E8fa733c --unlock 0x14723A09ACff6D2A60DcDF7aA4AFf308FDDC160C --unlock 0x4B0897b0513fdc7C541B6d9D7E929C4e5364D2dB --unlock 0x583031D1113aD414F02576BD6afaBfb302140225 --unlock 0xdD870fA1b7C4700F2BD7f44238821C26f7392148 --unlock 0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199 --unlock 0x90F79bf6EB2c4f870365E785982E1f101E93b906 --unlock 0xFFcf8FDEE72ac11b5c542428B35EEF5769C409f0",
     "ganache:start": "./start_ganache.sh",
-    "ganache:config": "ganache --config ganache-config.js --logging.verbose --mnemonic 'survey round advance myth torch health boost embrace bacon expect circle kid'",
+    "ganache:config": "ganache --config ganache-config.js --logging.verbose ,
     "foundry:status": "node node/foundry-status.mjs",
     "anvil:start": "anvil --host 127.0.0.1 --port 8545",
     "db:up": "docker compose --env-file .env.mssql up -d mssql mssql-init",
