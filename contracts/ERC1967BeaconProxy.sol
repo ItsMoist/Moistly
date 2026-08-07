@@ -1,28 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {console} from "../lib/forge-std/src/console.sol";
-
-
 interface IBeacon {
     function implementation() external view returns (address);
 }
 
-/// @notice Minimal EIP-1967 beacon proxy for deterministic StorageV2 deployments.
+/// @notice Minimal EIP-1967 beacon proxy for deterministic deployments.
 contract ERC1967BeaconProxy {
-    bytes32 internal constant BEACON_SLOT = 0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50;
+    bytes32 internal constant BEACON_SLOT =
+        0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50;
 
     error InvalidBeacon(address beacon);
     error InvalidImplementation(address implementation);
     error InitializerDelegateCallBlocked();
-    event Upgraded(address indexed implementation); 
-    
+
+    event BeaconConfigured(address indexed beacon, address indexed implementation);
+
     constructor(address beacon_, bytes memory data) payable {
         if (beacon_.code.length == 0) {
             revert InvalidBeacon(beacon_);
         }
         if (data.length != 0) {
-            //TODO: Need to add a way to initialize the implementation contract through the beacon proxy. For now, we will block delegate calls during initialization.
             revert InitializerDelegateCallBlocked();
         }
 
@@ -34,6 +32,8 @@ contract ERC1967BeaconProxy {
         assembly {
             sstore(BEACON_SLOT, beacon_)
         }
+
+        emit BeaconConfigured(beacon_, implementation_);
     }
 
     function beacon() external view returns (address beacon_) {
@@ -51,7 +51,7 @@ contract ERC1967BeaconProxy {
     }
 
     receive() external payable {
-        
+        _fallback();
     }
 
     function _fallback() internal {
@@ -73,5 +73,8 @@ contract ERC1967BeaconProxy {
         }
 
         implementation_ = IBeacon(beacon_).implementation();
+        if (implementation_.code.length == 0) {
+            revert InvalidImplementation(implementation_);
+        }
     }
 }
