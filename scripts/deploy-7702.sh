@@ -13,7 +13,7 @@ set -euo pipefail
 # This script deliberately separates:
 #   DCC3 account identity
 #   EIP-7702 delegation mechanism
-#   Moist7702Account implementation
+#   Moist7702AccountV2 implementation
 
 : "${RPC_URL:?set RPC_URL}"
 : "${DCC3:?set DCC3}"
@@ -23,7 +23,7 @@ FACTORY="${FACTORY:-0xA8Ce4524c53D038d68E75Ff52C995961599E22d5}"
 
 if [[ -z "${IMPLEMENTATION:-}" ]]; then
   : "${PRIVATE_KEY:?set PRIVATE_KEY to deploy implementation}"
-  BYTECODE=$(forge inspect contracts/Moist7702Account.sol:Moist7702Account bytecode)
+  BYTECODE=$(forge inspect contracts/Moist7702AccountV2.sol:Moist7702AccountV2 bytecode)
   INIT_CODE_HASH=$(cast keccak "$BYTECODE")
   echo "implementation initCodeHash: $INIT_CODE_HASH"
   echo "factory: $FACTORY"
