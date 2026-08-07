@@ -3,11 +3,11 @@ set -euo pipefail
 
 # Required env:
 #   RPC_URL
-#   PRIVATE_KEY                  deployer key for the implementation/factory tx
 #   DCC3                         account address (the account identity)
+#   SALT                         exact bytes32 factory salt retained for account lineage
 # Optional env:
+#   PRIVATE_KEY                  deployer key for the implementation/factory tx
 #   FACTORY                      deterministic factory address
-#   SALT                         bytes32 salt retained for account lineage
 #   IMPLEMENTATION               already-deployed implementation address
 #
 # This script deliberately separates:
@@ -17,9 +17,9 @@ set -euo pipefail
 
 : "${RPC_URL:?set RPC_URL}"
 : "${DCC3:?set DCC3}"
+: "${SALT:?set the exact retained bytes32 SALT; do not use an abbreviated value}"
 
 FACTORY="${FACTORY:-0xA8Ce4524c53D038d68E75Ff52C995961599E22d5}"
-SALT="${SALT:-0xcc5474000000000000000000000000000000000000000000000000000062eb}"
 
 if [[ -z "${IMPLEMENTATION:-}" ]]; then
   : "${PRIVATE_KEY:?set PRIVATE_KEY to deploy implementation}"
@@ -29,7 +29,6 @@ if [[ -z "${IMPLEMENTATION:-}" ]]; then
   echo "factory: $FACTORY"
   echo "salt:    $SALT"
 
-  # Moist2Factory-compatible interface expected by this repo.
   TX=$(cast send "$FACTORY" \
     "deploy(bytes32,bytes)(address)" \
     "$SALT" "$BYTECODE" \
