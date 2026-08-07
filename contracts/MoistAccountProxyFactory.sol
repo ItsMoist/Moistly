@@ -14,7 +14,7 @@ contract MoistAccountProxyFactory {
     mapping(bytes32 salt => bool used) public saltUsed;
 
     error InvalidImplementation();
-    error NonceAlreadyConsumed(address owner, uint256 nonce, uint256 nextNonce);
+    error NonceAlreadyConsumed(address owner, uint256 nonce);
     error DeploymentFailed();
 
     event AccountProxyDeployed(
@@ -27,8 +27,14 @@ contract MoistAccountProxyFactory {
     );
 
     /// @notice Derives the canonical CREATE2 salt for an owner/nonce pair.
+    /// @dev No chain id is included so the same owner + nonce yields the same salt on every chain.
     function saltFor(address owner, uint256 nonce) public pure returns (bytes32) {
         return keccak256(abi.encode(DOMAIN_SALT, owner, nonce));
+    }
+
+    /// @notice Returns whether a specific owner/nonce pair has already been consumed on this chain.
+    function nonceUsed(address owner, uint256 nonce) public view returns (bool) {
+        return saltUsed[saltFor(owner, nonce)];
     }
 
     /// @notice Returns the exact init-code hash used for CREATE2 prediction/deployment.
@@ -47,28 +53,40 @@ contract MoistAccountProxyFactory {
         predicted = address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), salt, codeHash)))));
     }
 
-    /// @notice Deploy using the caller's next sequential nonce.
-    /// @dev The current nonce is consumed atomically only if CREATE2 succeeds.
+    /// @notice Deploy using the caller's next free sequential nonce.
+    /// @dev Explicitly-used nonce slots are skipped instead of making the sequential path unusable.
     function deployNext(address implementation, bytes calldata initData) external payable returns (address proxy) {
         uint256 nonce = nextNonce[msg.sender];
+        while (nonceUsed(msg.sender, nonce)) {
+            unchecked {
+                ++nonce;
+            }
+        }
+
         proxy = _deploy(msg.sender, nonce, implementation, initData, msg.value);
         unchecked {
             nextNonce[msg.sender] = nonce + 1;
         }
     }
 
-    /// @notice Deploy a specific nonce, useful for reproducing a reserved cross-chain account address.
-    /// @dev A nonce lower than nextNonce is considered consumed. A higher nonce advances nextNonce after success.
+    /// @notice Deploy a specific nonce, preserving all other nonce slots for future cross-chain use.
+    /// @dev This is the canonical path when an account address has been reserved off-chain by nonce.
     function deployAtNonce(uint256 nonce, address implementation, bytes calldata initData)
         external
         payable
         returns (address proxy)
     {
-        uint256 current = nextNonce[msg.sender];
-        if (nonce < current) revert NonceAlreadyConsumed(msg.sender, nonce, current);
-
         proxy = _deploy(msg.sender, nonce, implementation, initData, msg.value);
-        nextNonce[msg.sender] = nonce + 1;
+
+        if (nonce == nextNonce[msg.sender]) {
+            uint256 cursor = nonce + 1;
+            while (nonceUsed(msg.sender, cursor)) {
+                unchecked {
+                    ++cursor;
+                }
+            }
+            nextNonce[msg.sender] = cursor;
+        }
     }
 
     function _deploy(address owner, uint256 nonce, address implementation, bytes calldata initData, uint256 value)
@@ -78,7 +96,7 @@ contract MoistAccountProxyFactory {
         if (implementation == address(0) || implementation.code.length == 0) revert InvalidImplementation();
 
         bytes32 salt = saltFor(owner, nonce);
-        if (saltUsed[salt]) revert NonceAlreadyConsumed(owner, nonce, nextNonce[owner]);
+        if (saltUsed[salt]) revert NonceAlreadyConsumed(owner, nonce);
 
         bytes memory creationCode = abi.encodePacked(
             type(MoistAccountProxy).creationCode,
