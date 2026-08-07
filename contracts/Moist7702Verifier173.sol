@@ -14,12 +14,17 @@ interface IERC165 {
     function supportsInterface(bytes4 interfaceId) external view returns (bool);
 }
 
+/// @notice ERC-1271 contract-signature verification interface.
+interface IERC1271 {
+    function isValidSignature(bytes32 hash, bytes calldata signature) external view returns (bytes4 magicValue);
+}
+
 /// @title Moist7702Verifier173
 /// @notice EIP-7702 delegate implementation bound to the canonical DCC3 EOA.
 /// @dev When this code is executed through EIP-7702 delegation, address(this) is
 ///      the delegating EOA. Therefore the EIP-712 verifyingContract is DCC3 itself,
 ///      not this implementation contract's deployment address.
-contract Moist7702Verifier173 is IERC173, IERC165 {
+contract Moist7702Verifier173 is IERC173, IERC165, IERC1271 {
     /// @notice Canonical DCC3 EOA that is permitted to use this implementation as
     ///         the production verification surface.
     address public constant DCC3 = 0x75e732608Bc17B23D01f01728562Ee844196DCC3;
@@ -29,6 +34,13 @@ contract Moist7702Verifier173 is IERC173, IERC165 {
 
     /// @notice ERC-165 interface id.
     bytes4 public constant ERC165_INTERFACE_ID = 0x01ffc9a7;
+
+    /// @notice ERC-1271 success magic value.
+    bytes4 public constant ERC1271_MAGICVALUE = 0x1626ba7e;
+
+    /// @dev secp256k1n / 2, used to reject malleable high-s signatures.
+    uint256 private constant SECP256K1N_HALF =
+        0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0;
 
     /// @dev Namespaced ownership slot to avoid collisions with other delegated,
     ///      proxy, Safe, or account-abstraction storage layouts.
@@ -89,6 +101,20 @@ contract Moist7702Verifier173 is IERC173, IERC165 {
         return interfaceId == ERC173_INTERFACE_ID || interfaceId == ERC165_INTERFACE_ID;
     }
 
+    /// @notice ERC-1271 signature validation for the DCC3 7702 account.
+    /// @dev Validation only succeeds while executing in DCC3's delegated context,
+    ///      and the recovered signer must equal the current ERC-173 owner.
+    function isValidSignature(bytes32 hash, bytes calldata signature)
+        external
+        view
+        override
+        returns (bytes4)
+    {
+        if (address(this) != DCC3) return bytes4(0xffffffff);
+        if (_recover(hash, signature) != _owner()) return bytes4(0xffffffff);
+        return ERC1271_MAGICVALUE;
+    }
+
     /// @notice True only when the code is executing in the canonical DCC3 7702 context.
     function isCanonicalDCC3Context() external view returns (bool) {
         return address(this) == DCC3;
@@ -132,5 +158,23 @@ contract Moist7702Verifier173 is IERC173, IERC165 {
         // DCC3 remains the canonical ERC-173 owner until an explicit transfer is
         // made in DCC3's delegated storage context.
         if (currentOwner == address(0)) currentOwner = DCC3;
+    }
+
+    function _recover(bytes32 hash, bytes calldata signature) internal pure returns (address signer) {
+        if (signature.length != 65) return address(0);
+
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+        assembly {
+            r := calldataload(signature.offset)
+            s := calldataload(add(signature.offset, 32))
+            v := byte(0, calldataload(add(signature.offset, 64)))
+        }
+
+        if (uint256(s) > SECP256K1N_HALF) return address(0);
+        if (v != 27 && v != 28) return address(0);
+
+        signer = ecrecover(hash, v, r, s);
     }
 }
