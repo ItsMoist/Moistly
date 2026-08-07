@@ -31,14 +31,13 @@ contract Moist7702Account {
     uint256 private constant SECP256K1N_DIV_2 =
         0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0;
 
-    /// @custom:storage-location erc7201:moistly.storage.Moist7702Account
     struct AccountStorage {
         address guard;
         uint64 guardEpoch;
     }
 
-    bytes32 private constant ACCOUNT_STORAGE_SLOT =
-        0x0d7e280e77f5d4cd20930b37d7970042de7bdbedcb81ad0b22398da6a997e400;
+    // Dedicated namespaced slot. Do not reorder delegated-account state into ordinary slots.
+    bytes32 private constant ACCOUNT_STORAGE_SLOT = keccak256("moistly.storage.Moist7702Account.v1");
 
     error Unauthorized(address caller);
     error InvalidTarget();
@@ -62,12 +61,10 @@ contract Moist7702Account {
 
     receive() external payable {}
 
-    /// @notice Returns the configured EntryPoint.
     function entryPoint() external pure returns (address) {
         return ENTRY_POINT_V07;
     }
 
-    /// @notice Returns the optional execution guard stored on the delegated EOA.
     function guard() external view returns (address) {
         return _accountStorage().guard;
     }
