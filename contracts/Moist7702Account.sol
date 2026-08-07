@@ -23,15 +23,16 @@ interface IERC20Approve {
     function approve(address spender, uint256 amount) external returns (bool);
 }
 
-/// @notice EIP-7702 delegation target with ERC-4337 v0.7 validation, optional execution guard,
-///         and CCTP V2 burn/mint helpers.
-/// @dev Deploy this implementation at the same deterministic address on every chain, then authorize
-///      each EOA to delegate to that address using EIP-7702. Mutable state lives in the delegating
-///      EOA because calls execute in the EOA storage context.
+/// @notice EIP-7702 delegation target with ERC-4337 v0.7 validation, ERC-173 ownership,
+///         optional execution guard, and CCTP V2 burn/mint helpers.
+/// @dev The account address and the EIP-7702 mechanism are distinct concepts. An account may use
+///      EIP-7702 as one execution/authentication mechanism without changing its identity.
 contract Moist7702Account {
     address public constant ENTRY_POINT_V07 = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
 
     bytes4 public constant ERC1271_MAGICVALUE = 0x1626ba7e;
+    bytes4 public constant ERC165_INTERFACE_ID = 0x01ffc9a7;
+    bytes4 public constant ERC173_INTERFACE_ID = 0x7f5828d0;
     uint256 private constant SIG_VALIDATION_FAILED = 1;
     uint256 private constant SECP256K1N_DIV_2 =
         0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0;
@@ -42,6 +43,8 @@ contract Moist7702Account {
         bytes4(keccak256("receiveMessage(bytes,bytes)"));
 
     struct AccountStorage {
+        // ERC-173 ownership/control domain. Zero means the delegated account self-owns by default.
+        address owner;
         address guard;
         uint64 guardEpoch;
         uint64 cctpBurnCount;
@@ -59,6 +62,7 @@ contract Moist7702Account {
     error TokenApprovalFailed(address token, address spender, uint256 amount);
     error CCTPMessageAlreadyFinalized(bytes32 messageHash);
 
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event GuardUpdated(address indexed previousGuard, address indexed newGuard, uint64 epoch);
     event Executed(address indexed target, uint256 value, bytes4 indexed selector);
     event CCTPBurnSubmitted(
@@ -90,10 +94,35 @@ contract Moist7702Account {
         _;
     }
 
+    modifier onlyOwner() {
+        if (msg.sender != owner()) revert Unauthorized(msg.sender);
+        _;
+    }
+
     receive() external payable {}
 
     function entryPoint() external pure returns (address) {
         return ENTRY_POINT_V07;
+    }
+
+    /// @notice ERC-173 owner. Until explicitly transferred, a delegated account is self-owned.
+    function owner() public view returns (address currentOwner) {
+        currentOwner = _accountStorage().owner;
+        if (currentOwner == address(0)) currentOwner = address(this);
+    }
+
+    /// @notice ERC-173 ownership transfer. Ownership is independent from the EIP-7702 signer key.
+    /// @dev Passing address(0) renounces the ERC-173 control domain as permitted by ERC-173.
+    function transferOwnership(address newOwner) external onlyOwner {
+        AccountStorage storage state = _accountStorage();
+        address previousOwner = owner();
+        state.owner = newOwner;
+        emit OwnershipTransferred(previousOwner, newOwner);
+    }
+
+    /// @notice ERC-165 discovery for ERC-165 and ERC-173.
+    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
+        return interfaceId == ERC165_INTERFACE_ID || interfaceId == ERC173_INTERFACE_ID;
     }
 
     function guard() external view returns (address) {
@@ -112,7 +141,7 @@ contract Moist7702Account {
         return _accountStorage().cctpFinalized[messageHash];
     }
 
-    /// @notice Set or clear the execution guard. The EOA must call itself to authorize this action.
+    /// @notice Set or clear the execution guard. Execution authority remains separate from ERC-173 ownership.
     function setGuard(address newGuard) external onlySelf {
         AccountStorage storage state = _accountStorage();
         address previous = state.guard;
@@ -123,7 +152,6 @@ contract Moist7702Account {
         emit GuardUpdated(previous, newGuard, state.guardEpoch);
     }
 
-    /// @notice Execute one call from the delegated EOA.
     function execute(address target, uint256 value, bytes calldata data)
         external
         payable
@@ -133,7 +161,6 @@ contract Moist7702Account {
         result = _execute(target, value, data);
     }
 
-    /// @notice Execute multiple calls atomically from the delegated EOA.
     function executeBatch(address[] calldata targets, uint256[] calldata values, bytes[] calldata data)
         external
         payable
@@ -149,10 +176,6 @@ contract Moist7702Account {
         }
     }
 
-    /// @notice Burn native USDC through Circle CCTP V2 from the delegated EOA.
-    /// @dev For a same-account transfer set mintRecipient and destinationCaller to
-    ///      bytes32(uint256(uint160(address(this)))). The source CCTP DepositForBurn event supplies
-    ///      Circle's canonical message nonce used by off-chain tracking.
     function cctpBurn(
         address tokenMessenger,
         address burnToken,
@@ -201,9 +224,6 @@ contract Moist7702Account {
         );
     }
 
-    /// @notice Submit Circle's attested CCTP V2 message on the destination chain to trigger mint.
-    /// @dev MessageTransmitterV2 enforces Circle's signature and replay protection. This account also
-    ///      records messageHash locally so account-centric cross-chain state can be queried directly.
     function cctpFinalizeMint(address messageTransmitter, bytes calldata message, bytes calldata attestation)
         external
         onlySelfOrEntryPoint
@@ -225,8 +245,6 @@ contract Moist7702Account {
         emit CCTPMintFinalized(messageTransmitter, messageHash, state.cctpMintCount);
     }
 
-    /// @notice ERC-4337 account validation. Signature must recover to the delegated EOA address.
-    /// @dev Returns SIG_VALIDATION_FAILED instead of reverting for invalid signatures.
     function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 missingAccountFunds)
         external
         returns (uint256 validationData)
@@ -244,7 +262,6 @@ contract Moist7702Account {
         return 0;
     }
 
-    /// @notice ERC-1271 validation against the delegated EOA key.
     function isValidSignature(bytes32 hash, bytes calldata signature) external view returns (bytes4) {
         return _isValidSigner(hash, signature) ? ERC1271_MAGICVALUE : bytes4(0xffffffff);
     }
