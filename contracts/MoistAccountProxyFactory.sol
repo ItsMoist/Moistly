@@ -56,17 +56,9 @@ contract MoistAccountProxyFactory {
     /// @notice Deploy using the caller's next free sequential nonce.
     /// @dev Explicitly-used nonce slots are skipped instead of making the sequential path unusable.
     function deployNext(address implementation, bytes calldata initData) external payable returns (address proxy) {
-        uint256 nonce = nextNonce[msg.sender];
-        while (nonceUsed(msg.sender, nonce)) {
-            unchecked {
-                ++nonce;
-            }
-        }
-
+        uint256 nonce = _nextFreeNonce(msg.sender, nextNonce[msg.sender]);
         proxy = _deploy(msg.sender, nonce, implementation, initData, msg.value);
-        unchecked {
-            nextNonce[msg.sender] = nonce + 1;
-        }
+        nextNonce[msg.sender] = _nextFreeNonce(msg.sender, nonce + 1);
     }
 
     /// @notice Deploy a specific nonce, preserving all other nonce slots for future cross-chain use.
@@ -79,14 +71,17 @@ contract MoistAccountProxyFactory {
         proxy = _deploy(msg.sender, nonce, implementation, initData, msg.value);
 
         if (nonce == nextNonce[msg.sender]) {
-            uint256 cursor = nonce + 1;
-            while (nonceUsed(msg.sender, cursor)) {
-                unchecked {
-                    ++cursor;
-                }
-            }
-            nextNonce[msg.sender] = cursor;
+            nextNonce[msg.sender] = _nextFreeNonce(msg.sender, nonce + 1);
         }
+    }
+
+    function _nextFreeNonce(address owner, uint256 cursor) private view returns (uint256) {
+        while (nonceUsed(owner, cursor)) {
+            unchecked {
+                ++cursor;
+            }
+        }
+        return cursor;
     }
 
     function _deploy(address owner, uint256 nonce, address implementation, bytes calldata initData, uint256 value)
