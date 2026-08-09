@@ -1,0 +1,12 @@
+# Never commit real secret values. Copy this file to .dev.vars for local development.
+
+ALCHEMY_SIGNING_KEY=
+ALCHEMY_MOIST_SIGNING_KEY=
+ALCHEMY_USDC_SIGNING_KEY=
+ALCHEMY_DCC3_SIGNING_KEY=
+ALCHEMY_9E9_SIGNING_KEY=
+
+# Enable only after the Cloudflare Tunnel/private service is configured.
+LOCAL_PROCESSOR_ENABLED=false
+LOCAL_PROCESSOR_URL=
+LOCAL_PROCESSOR_TOKEN=
