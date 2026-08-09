@@ -1,0 +1,43 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "moist-provider-gateway",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-09",
+  "workers_dev": false,
+  "observability": {
+    "enabled": true
+  },
+  "routes": [
+    {
+      "pattern": "app.moistbandz.com/*",
+      "zone_name": "moistbandz.com"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "WEBHOOK_DB",
+      "database_name": "moist-webhooks"
+    }
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "WEBHOOK_QUEUE",
+        "queue": "moist-webhook-events"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "moist-webhook-events",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 5,
+        "dead_letter_queue": "moist-webhook-events-dlq"
+      }
+    ]
+  },
+  "vars": {
+    "APP_ORIGIN": "https://app.moistbandz.com",
+    "LOCAL_PROCESSOR_ENABLED": "false"
+  }
+}
