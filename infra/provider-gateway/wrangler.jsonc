@@ -8,10 +8,12 @@
     "enabled": true
   },
   "routes": [
-    {
-      "pattern": "app.moistbandz.com/*",
-      "zone_name": "moistbandz.com"
-    }
+    { "pattern": "app.moistbandz.com/alchemy/*", "zone_name": "moistbandz.com" },
+    { "pattern": "app.moistbandz.com/coinbase/*", "zone_name": "moistbandz.com" },
+    { "pattern": "app.moistbandz.com/privy/*", "zone_name": "moistbandz.com" },
+    { "pattern": "app.moistbandz.com/reown/*", "zone_name": "moistbandz.com" },
+    { "pattern": "app.moistbandz.com/github/*", "zone_name": "moistbandz.com" },
+    { "pattern": "app.moistbandz.com/health", "zone_name": "moistbandz.com" }
   ],
   "d1_databases": [
     {
