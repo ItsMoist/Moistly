@@ -190,6 +190,39 @@ contract MoistKernelExecutorAdapterForkTest is Test {
         assertTrue(kernel.isModuleInstalled(2, address(adapter), ""));
     }
 
+    function test_moduleLifecycleCall_forbidden() public {
+        // Without this guard an operator could make the account call ECDSAValidator.onInstall(attacker),
+        // replacing the root signer.
+        bytes memory takeover = abi.encodeWithSignature("onInstall(bytes)", abi.encodePacked(attacker));
+        vm.prank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                MoistExecutor.CallFailed.selector,
+                0,
+                address(adapter),
+                abi.encodeWithSelector(
+                    MoistKernelExecutorAdapter.ModuleLifecycleCallForbidden.selector, ECDSA_VALIDATOR
+                )
+            )
+        );
+        executor.execute(address(adapter), 0, _single(kernel, ECDSA_VALIDATOR, 0, takeover));
+
+        MoistKernelExecutorAdapter.Execution[] memory calls = new MoistKernelExecutorAdapter.Execution[](1);
+        calls[0] = MoistKernelExecutorAdapter.Execution(
+            ECDSA_VALIDATOR, 0, abi.encodeWithSignature("onUninstall(bytes)", bytes(""))
+        );
+        vm.prank(owner);
+        vm.expectRevert();
+        executor.execute(
+            address(adapter), 0, abi.encodeCall(MoistKernelExecutorAdapter.executeBatch, (address(kernel), calls))
+        );
+
+        (bool ok, bytes memory ret) =
+            ECDSA_VALIDATOR.staticcall(abi.encodeWithSignature("ecdsaValidatorStorage(address)", address(kernel)));
+        assertTrue(ok);
+        assertEq(abi.decode(ret, (address)), owner);
+    }
+
     function test_allowlistFromInstallData() public {
         address[] memory targets = new address[](1);
         targets[0] = address(sink);
@@ -254,6 +287,7 @@ contract MoistKernelExecutorAdapterForkTest is Test {
         assertFalse(kernel.isModuleInstalled(2, address(adapter), ""));
         assertEq(adapter.trustedExecutor(address(kernel)), address(0));
         assertFalse(adapter.targetRestricted(address(kernel)));
+        assertFalse(adapter.isTargetAllowed(address(kernel), address(sink)));
 
         vm.prank(owner);
         vm.expectRevert();

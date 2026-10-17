@@ -63,6 +63,7 @@ contract MoistKernelExecutorAdapter is IERC7579Module {
     error InvalidTarget();
     error EmptyBatch();
     error SelfCallForbidden();
+    error ModuleLifecycleCallForbidden(address target);
     error TargetNotAllowed(address target);
 
     event AdapterInstalled(address indexed account, address indexed trustedExecutor);
@@ -138,7 +139,7 @@ contract MoistKernelExecutorAdapter is IERC7579Module {
 
     /// @notice Whether `target` is allowlisted for `account`'s current install.
     function isTargetAllowed(address account, address target) public view returns (bool) {
-        return _allowedTarget[account][installGeneration[account]][target];
+        return trustedExecutor[account] != address(0) && _allowedTarget[account][installGeneration[account]][target];
     }
 
     /// @notice Execute one call from a Kernel account via its installed executor module.
@@ -150,7 +151,7 @@ contract MoistKernelExecutorAdapter is IERC7579Module {
         returns (bytes[] memory results)
     {
         if (account.code.length == 0) revert InvalidAccount();
-        _checkTarget(account, target);
+        _checkTarget(account, target, callData);
 
         // ERC-7579 single-call encoding is packed: target || value || callData.
         bytes memory executionCalldata = abi.encodePacked(target, value, callData);
@@ -172,7 +173,7 @@ contract MoistKernelExecutorAdapter is IERC7579Module {
 
         Execution[] memory executions = new Execution[](calls.length);
         for (uint256 i; i < calls.length; ++i) {
-            _checkTarget(account, calls[i].target);
+            _checkTarget(account, calls[i].target, calls[i].callData);
             executions[i] = Execution({target: calls[i].target, value: calls[i].value, callData: calls[i].callData});
         }
 
@@ -181,9 +182,18 @@ contract MoistKernelExecutorAdapter is IERC7579Module {
         emit AccountExecution(account, msg.sender, calls.length);
     }
 
-    function _checkTarget(address account, address target) private view {
+    /// @dev Blocks calls that could hand control of the account to someone else: calls into the account
+    ///      itself (passes Kernel's onlyEntryPointOrSelfOrRoot) and ERC-7579 onInstall/onUninstall on any
+    ///      module, which modules key by msg.sender (e.g. ECDSAValidator.onInstall would replace the owner).
+    function _checkTarget(address account, address target, bytes calldata callData) private view {
         if (target == address(0)) revert InvalidTarget();
         if (target == account) revert SelfCallForbidden();
+        if (callData.length >= 4) {
+            bytes4 selector = bytes4(callData[:4]);
+            if (selector == IERC7579Module.onInstall.selector || selector == IERC7579Module.onUninstall.selector) {
+                revert ModuleLifecycleCallForbidden(target);
+            }
+        }
         if (targetRestricted[account] && !isTargetAllowed(account, target)) {
             revert TargetNotAllowed(target);
         }
