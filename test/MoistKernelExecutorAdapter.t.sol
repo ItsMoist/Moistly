@@ -40,8 +40,8 @@ contract Reverter {
     }
 }
 
-/// @notice Mainnet-fork tests against the deployed Kernel v3.1 implementation and factory.
-/// @dev Set MAINNET_RPC_URL to run; skipped otherwise.
+/// @notice Fork tests against the deployed Kernel v3.1 implementation and factory (same addresses on mainnet and Arbitrum).
+/// @dev Set KERNEL_FORK_RPC_URL to run; skipped otherwise.
 contract MoistKernelExecutorAdapterForkTest is Test {
     address constant KERNEL_V3_1_FACTORY = 0xaac5D4240AF87249B3f71BC8E4A2cae074A3E419;
     address constant ECDSA_VALIDATOR = 0x845ADb2C711129d4f3966735eD98a9F09fC4cE57;
@@ -55,7 +55,7 @@ contract MoistKernelExecutorAdapterForkTest is Test {
     Sink sink;
 
     function setUp() public {
-        string memory rpc = vm.envOr("MAINNET_RPC_URL", string(""));
+        string memory rpc = vm.envOr("KERNEL_FORK_RPC_URL", string(""));
         if (bytes(rpc).length == 0) {
             vm.skip(true);
             return;
