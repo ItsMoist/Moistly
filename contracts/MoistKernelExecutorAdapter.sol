@@ -1,14 +1,19 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.25;
 
-/// @notice Minimal ERC-7579 executor module for routing authorized Moistly calls
-///         through a Kernel smart account.
-/// @dev Install this module on each Kernel account with abi.encode(moistExecutorProxy).
-///      The MoistExecutor remains responsible for owner/operator/signature policy.
-///      This module is intentionally not a standalone wallet and holds no assets.
-interface IERC7579KernelAccount {
-    function executeFromExecutor(bytes32 mode, bytes calldata executionCalldata)
+/// @notice ERC-7579 executor-module adapter for the Kernel implementation at
+///         0xbac849bb641841b44e965fb01a4bf5f074f84b4d.
+/// @dev Install this module on each Kernel account with initData = abi.encode(moistExecutorProxy).
+///      Then call MoistExecutor.execute(adapter, 0, abi.encodeCall(
+///      MoistKernelExecutorAdapter.executeSingle, (kernelAccount, target, value, callData))).
+///      The MoistExecutor proxy remains the policy boundary: its owner/operator/signature checks
+///      run before it calls this adapter. This adapter intentionally holds no user assets.
+interface IKernelV3ExecutorAccount {
+    /// @dev Kernel v3 declares this argument as its user-defined ExecMode type.
+    ///      ExecMode is ABI-compatible with bytes32.
+    function executeFromExecutor(bytes32 execMode, bytes calldata executionCalldata)
         external
+        payable
         returns (bytes[] memory returnData);
 }
 
@@ -20,8 +25,12 @@ interface IERC7579Module {
 
 contract MoistKernelExecutorAdapter is IERC7579Module {
     uint256 private constant MODULE_TYPE_EXECUTOR = 2;
-    bytes32 private constant MODE_SINGLE = bytes32(0);
-    bytes32 private constant MODE_BATCH = bytes32(uint256(1) << 248);
+
+    // ERC-7579 ModeCode layout: [callType:1][execType:1][unused:4]
+    // [modeSelector:4][modePayload:22]. execType 0x00 means revert on failure.
+    // The remaining selector/payload bytes are zero for the standard modes used here.
+    bytes32 private constant MODE_SINGLE_DEFAULT = bytes32(0);
+    bytes32 private constant MODE_BATCH_DEFAULT = bytes32(uint256(1) << 248);
 
     struct Execution {
         address target;
@@ -29,6 +38,8 @@ contract MoistKernelExecutorAdapter is IERC7579Module {
         bytes callData;
     }
 
+    /// @dev Per-account allowlist. The trusted address must be the MoistExecutor proxy,
+    ///      not its implementation contract, because Kernel sees msg.sender as the proxy.
     mapping(address account => address executor) public trustedExecutor;
 
     error InvalidAccount();
@@ -37,6 +48,7 @@ contract MoistKernelExecutorAdapter is IERC7579Module {
     error NotInstalled();
     error UnauthorizedCaller(address caller);
     error InvalidTarget();
+    error EmptyBatch();
 
     event AdapterInstalled(address indexed account, address indexed trustedExecutor);
     event AdapterUninstalled(address indexed account);
@@ -55,7 +67,8 @@ contract MoistKernelExecutorAdapter is IERC7579Module {
     }
 
     /// @inheritdoc IERC7579Module
-    /// @dev ERC-7579 account calls this hook during module installation.
+    /// @dev Called by the Kernel account during installModule(2, adapter, initData).
+    ///      initData must be abi.encode(the MoistExecutor proxy address).
     function onInstall(bytes calldata data) external {
         if (msg.sender.code.length == 0) revert InvalidAccount();
         if (trustedExecutor[msg.sender] != address(0)) revert AlreadyInstalled();
@@ -68,16 +81,16 @@ contract MoistKernelExecutorAdapter is IERC7579Module {
     }
 
     /// @inheritdoc IERC7579Module
-    /// @dev The account calls this hook when removing the module.
+    /// @dev Called by the Kernel account during uninstallModule(2, adapter, deInitData).
     function onUninstall(bytes calldata) external {
         if (trustedExecutor[msg.sender] == address(0)) revert NotInstalled();
         delete trustedExecutor[msg.sender];
         emit AdapterUninstalled(msg.sender);
     }
 
-    /// @notice Execute one call from the Kernel account.
-    /// @dev The account must have this module installed; Kernel performs that check
-    ///      in executeFromExecutor. The caller must be the trusted MoistExecutor proxy.
+    /// @notice Execute one call from a Kernel account via its installed executor module.
+    /// @dev The trusted MoistExecutor proxy is the only caller allowed to select accounts
+    ///      and targets. Kernel independently checks that this adapter is installed.
     function executeSingle(
         address account,
         address target,
@@ -87,23 +100,25 @@ contract MoistKernelExecutorAdapter is IERC7579Module {
         if (account.code.length == 0) revert InvalidAccount();
         if (target == address(0)) revert InvalidTarget();
 
+        // ERC-7579 single-call encoding is packed: target || value || callData.
         bytes memory executionCalldata = abi.encodePacked(target, value, callData);
-        results = IERC7579KernelAccount(account).executeFromExecutor(
-            MODE_SINGLE, executionCalldata
+        results = IKernelV3ExecutorAccount(account).executeFromExecutor(
+            MODE_SINGLE_DEFAULT, executionCalldata
         );
+
         emit AccountExecution(account, msg.sender, 1);
     }
 
-    /// @notice Execute an atomic batch from the Kernel account.
-    /// @dev ERC-7579 batch execution data is abi.encode(Execution[]), not a custom
-    ///      concatenation of target/value/data tuples.
+    /// @notice Execute an atomic batch of calls from a Kernel account.
+    /// @dev ERC-7579 batch data is abi.encode(Execution[]), with fields in
+    ///      (address target, uint256 value, bytes callData) order.
     function executeBatch(address account, Execution[] calldata calls)
         external
         onlyTrustedExecutor(account)
         returns (bytes[] memory results)
     {
         if (account.code.length == 0) revert InvalidAccount();
-        if (calls.length == 0) revert InvalidTarget();
+        if (calls.length == 0) revert EmptyBatch();
 
         Execution[] memory executions = new Execution[](calls.length);
         for (uint256 i; i < calls.length; ++i) {
@@ -115,9 +130,10 @@ contract MoistKernelExecutorAdapter is IERC7579Module {
             });
         }
 
-        results = IERC7579KernelAccount(account).executeFromExecutor(
-            MODE_BATCH, abi.encode(executions)
+        results = IKernelV3ExecutorAccount(account).executeFromExecutor(
+            MODE_BATCH_DEFAULT, abi.encode(executions)
         );
+
         emit AccountExecution(account, msg.sender, calls.length);
     }
 }
