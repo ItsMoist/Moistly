@@ -9,6 +9,8 @@ contract DeployKernelAccountLinkRegistry is Script {
     function run() external returns (KernelAccountLinkRegistry registry) {
         uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address expectedDeployer = vm.envAddress("EXPECTED_DEPLOYER");
+        uint256 expectedChainId = vm.envUint("EXPECTED_CHAIN_ID");
+        require(block.chainid == expectedChainId, "unexpected chain id");
         require(vm.addr(deployerKey) == expectedDeployer, "deployer key/address mismatch");
 
         vm.startBroadcast(deployerKey);
