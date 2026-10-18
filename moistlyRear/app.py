@@ -22,6 +22,8 @@ def create_app(environment="local"):
 
     app = Flask(__name__)
     app.config.from_object(config)
+    from .routes.recovery import recovery
+    app.register_blueprint(recovery)
     return app
 
 app = Flask(import_name=__name__)
