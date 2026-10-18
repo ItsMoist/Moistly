@@ -20,6 +20,7 @@ contract MoistTrader {
     error NotDelegated();
     error Reentrant();
     error EmptyCall();
+    error DirectFundingDisabled();
 
     address public immutable trader;
     address public immutable gains;
@@ -92,13 +93,63 @@ contract MoistTrader {
         return IGainsTradingDelegation(gains).getTradingDelegate(trader) == address(this);
     }
 
+    /// @notice Collateral is funded from the trader account by Gains during openTrade / increasePositionSize.
+    /// @dev A generic token deposit here would not credit a Gains position. Do not transfer collateral here.
+    function deposit() external payable { revert DirectFundingDisabled(); }
+
+    /// @notice Collateral is released by Gains to the trader through closeTradeMarket / decreasePositionSize.
+    /// @dev A generic withdrawal from this delegate would not withdraw Gains position collateral.
+    function withdraw() external pure { revert DirectFundingDisabled(); }
+
+    /// @notice Increase collateral / exposure on an existing Gains position.
+    function increasePositionSize(uint32 index, uint120 collateralDelta, uint24 leverageDelta, uint64 expectedPrice, uint16 maxSlippageP)
+        external onlyAuthorized nonReentrant returns (bytes memory)
+    {
+        return _trade(abi.encodeWithSignature("increasePositionSize(uint32,uint120,uint24,uint64,uint16)", index, collateralDelta, leverageDelta, expectedPrice, maxSlippageP));
+    }
+
+    /// @notice Withdraw part of a position's collateral by reducing its size through Gains.
+    function decreasePositionSize(uint32 index, uint120 collateralDelta, uint24 leverageDelta, uint64 expectedPrice)
+        external onlyAuthorized nonReentrant returns (bytes memory)
+    {
+        return _trade(abi.encodeWithSignature("decreasePositionSize(uint32,uint120,uint24,uint64)", index, collateralDelta, leverageDelta, expectedPrice));
+    }
+
+    /// @notice Close a position, with settlement performed by Gains for the trader.
+    function closeTradeMarket(uint32 index, uint64 expectedPrice)
+        external onlyAuthorized nonReentrant returns (bytes memory)
+    {
+        return _trade(abi.encodeWithSignature("closeTradeMarket(uint32,uint64)", index, expectedPrice));
+    }
+
+    function updateTp(uint32 index, uint64 newTp) external onlyAuthorized nonReentrant returns (bytes memory) {
+        return _trade(abi.encodeWithSignature("updateTp(uint32,uint64)", index, newTp));
+    }
+
+    function updateSl(uint32 index, uint64 newSl) external onlyAuthorized nonReentrant returns (bytes memory) {
+        return _trade(abi.encodeWithSignature("updateSl(uint32,uint64)", index, newSl));
+    }
+
+    function updateLeverage(uint32 index, uint24 newLeverage) external onlyAuthorized nonReentrant returns (bytes memory) {
+        return _trade(abi.encodeWithSignature("updateLeverage(uint32,uint24)", index, newLeverage));
+    }
+
+    function cancelOpenOrder(uint32 index) external onlyAuthorized nonReentrant returns (bytes memory) {
+        return _trade(abi.encodeWithSignature("cancelOpenOrder(uint32)", index));
+    }
+
     /// @notice Execute an allowlisted Gains trading action on behalf of trader.
     /// @param callData ABI-encoded Gains trading function call, not delegatedTradingAction itself.
     function trade(bytes calldata callData)
         external onlyAuthorized nonReentrant returns (bytes memory result)
     {
+        return _trade(callData);
+    }
+
+    function _trade(bytes memory callData) internal returns (bytes memory result) {
         if (callData.length < 4) revert EmptyCall();
-        bytes4 selector = bytes4(callData[:4]);
+        bytes4 selector;
+        assembly { selector := mload(add(callData, 32)) }
         if (!allowedSelectors[selector]) revert SelectorNotAllowed(selector);
         if (!isDelegated()) revert NotDelegated();
         result = IGainsTradingDelegation(gains).delegatedTradingAction(trader, callData);
