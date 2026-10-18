@@ -11,7 +11,7 @@ interface IGainsTradingDelegation {
 /// @title MoistTrader
 /// @notice Dedicated Gains trading delegate for a single trader on Base.
 /// @dev DCC3 must call Gains.setTradingDelegate(address(this)) from the trader wallet.
-///      Do not deposit collateral here: trades are attributed to the trader by Gains.
+///      ETH held here is NOT credited as Gains collateral; delegated actions are attributed to trader.
 contract MoistTrader {
     error Unauthorized();
     error ZeroAddress();
@@ -20,7 +20,8 @@ contract MoistTrader {
     error NotDelegated();
     error Reentrant();
     error EmptyCall();
-    error DirectFundingDisabled();
+    error InsufficientNativeBalance();
+    error NativeTransferFailed();
 
     address public immutable trader;
     address public immutable gains;
@@ -35,6 +36,8 @@ contract MoistTrader {
     event OperatorUpdated(address indexed operator, bool authorized);
     event SelectorUpdated(bytes4 indexed selector, bool allowed);
     event TradeExecuted(address indexed caller, address indexed trader, bytes4 indexed selector, bytes result);
+    event NativeDeposited(address indexed sender, uint256 amount);
+    event NativeWithdrawn(address indexed trader, uint256 amount);
 
     constructor(address trader_, address gains_, address owner_) {
         if (trader_ == address(0) || gains_ == address(0) || owner_ == address(0)) revert ZeroAddress();
@@ -93,13 +96,27 @@ contract MoistTrader {
         return IGainsTradingDelegation(gains).getTradingDelegate(trader) == address(this);
     }
 
-    /// @notice Collateral is funded from the trader account by Gains during openTrade / increasePositionSize.
-    /// @dev A generic token deposit here would not credit a Gains position. Do not transfer collateral here.
-    function deposit() external payable { revert DirectFundingDisabled(); }
+    /// @notice Accept ETH for safekeeping. This does not fund a Gains trading position.
+    receive() external payable {
+        emit NativeDeposited(msg.sender, msg.value);
+    }
 
-    /// @notice Collateral is released by Gains to the trader through closeTradeMarket / decreasePositionSize.
-    /// @dev A generic withdrawal from this delegate would not withdraw Gains position collateral.
-    function withdraw() external pure { revert DirectFundingDisabled(); }
+    function deposit() external payable {
+        emit NativeDeposited(msg.sender, msg.value);
+    }
+
+    /// @notice Return unused native ETH to the immutable trader address.
+    /// @dev Only owner can withdraw; operators cannot withdraw ETH.
+    function withdraw(uint256 amount) external onlyOwner nonReentrant {
+        if (amount > address(this).balance) revert InsufficientNativeBalance();
+        (bool ok, ) = payable(trader).call{value: amount}("");
+        if (!ok) revert NativeTransferFailed();
+        emit NativeWithdrawn(trader, amount);
+    }
+
+    function nativeBalance() external view returns (uint256) {
+        return address(this).balance;
+    }
 
     /// @notice Increase collateral / exposure on an existing Gains position.
     function increasePositionSize(uint32 index, uint120 collateralDelta, uint24 leverageDelta, uint64 expectedPrice, uint16 maxSlippageP)
