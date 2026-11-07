@@ -64,3 +64,14 @@ $ forge --help
 $ anvil --help
 $ cast --help
 ```
+
+## Address watchlist
+
+Run the Flask app with `flask --app moistlyRear.app run` and open
+`http://127.0.0.1:5000/addresses/`. Set `ETHERSCAN_API_KEY` in the server
+environment for transaction history. The provider must support history for the
+selected network.
+
+Add an EVM address, select Ethereum, Base, or Arbitrum One, and enter its role in
+Moistly. Entries stay in the current browser. Select **View history** to see the
+latest 25 normal transactions, or use the explorer link for more activity.
