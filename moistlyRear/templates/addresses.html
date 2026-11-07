@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Addresses · Moistly</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='addresses/dashboard.css') }}">
+  <script type="module" src="{{ url_for('static', filename='addresses/dashboard.js') }}"></script>
+</head>
+<body>
+  <main data-history-root="{{ url_for('addresses.index') }}history/">
+    <header>
+      <p class="eyebrow">Moistly / Address Observatory</p>
+      <h1>Address watchlist</h1>
+      <p>Track wallets and contracts by chain and see what each address does in Moistly.</p>
+    </header>
+    <section>
+      <h2>Add an address</h2>
+      <form id="add-address">
+        <label>Chain <select name="chain">{% for id, name in chains.items() %}<option value="{{ id }}">{{ name }}</option>{% endfor %}</select></label>
+        <label>Address <input name="address" placeholder="0x…" pattern="0x[0-9a-fA-F]{40}" maxlength="42" required></label>
+        <label>Label <input name="label" placeholder="e.g. DCC3" maxlength="80"></label>
+        <label>Role in Moistly <input name="role" placeholder="e.g. Treasury or upgrade authority" maxlength="100" required></label>
+        <button>Add to watchlist</button>
+      </form>
+      <p id="watch-error" role="alert"></p>
+    </section>
+    <section>
+      <h2>Tracked addresses</h2>
+      <p>Saved in this browser. Roles are labels you assign.</p>
+      <ul id="watchlist"></ul>
+      <p id="empty-watchlist">Add an address to get started.</p>
+    </section>
+    <section id="history" hidden>
+      <h2>Transaction history</h2>
+      <p id="selected-address"></p>
+      <div class="actions"><button type="button" id="refresh">Refresh history</button><a id="explorer" target="_blank" rel="noopener noreferrer">Open in explorer</a></div>
+      <p id="history-status" role="status"></p>
+      <div class="table-wrap"><table hidden id="transactions">
+        <thead><tr><th>Transaction</th><th>Time</th><th>Block</th><th>Direction</th><th>From</th><th>To</th><th>Result</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </section>
+  </main>
+</body>
+</html>

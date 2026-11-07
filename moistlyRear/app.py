@@ -4,6 +4,7 @@
 from flask import Flask, request
 
 
+from .routes.addresses import addresses
 from .config import LocalConfig, RemoteConfig, TestingConfig
 
 
@@ -22,9 +23,11 @@ def create_app(environment="local"):
 
     app = Flask(__name__)
     app.config.from_object(config)
+    app.register_blueprint(addresses)
     return app
 
 app = Flask(import_name=__name__)
+app.register_blueprint(addresses)
 
 
 @app.route("/")
