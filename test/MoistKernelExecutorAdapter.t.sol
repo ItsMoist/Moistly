@@ -55,12 +55,11 @@ contract MoistKernelExecutorAdapterForkTest is Test {
     Sink sink;
 
     function setUp() public {
-        string memory rpc = vm.envOr("KERNEL_FORK_RPC_URL", string(""));
-        if (bytes(rpc).length == 0) {
-            vm.skip(true);
-            return;
-        }
+        // Fork coverage is required: missing CI configuration must fail, never report 13 skips as success.
+        string memory rpc = vm.envString("KERNEL_FORK_RPC_URL");
+        uint256 expectedChainId = vm.envUint("KERNEL_FORK_CHAIN_ID");
         vm.createSelectFork(rpc);
+        assertEq(block.chainid, expectedChainId, "unexpected fork chain");
 
         executor = MoistExecutor(
             payable(address(
