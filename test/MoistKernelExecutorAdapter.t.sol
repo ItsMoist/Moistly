@@ -41,7 +41,7 @@ contract Reverter {
 }
 
 /// @notice Fork tests against the deployed Kernel v3.1 implementation and factory (same addresses on mainnet and Arbitrum).
-/// @dev Set KERNEL_FORK_RPC_URL to run; skipped otherwise.
+/// @dev Requires KERNEL_FORK_RPC_URL and KERNEL_FORK_CHAIN_ID; missing fork configuration is a test failure.
 contract MoistKernelExecutorAdapterForkTest is Test {
     address constant KERNEL_V3_1_FACTORY = 0xaac5D4240AF87249B3f71BC8E4A2cae074A3E419;
     address constant ECDSA_VALIDATOR = 0x845ADb2C711129d4f3966735eD98a9F09fC4cE57;
