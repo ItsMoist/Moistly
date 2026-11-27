@@ -1,29 +1,42 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {console} from "lib/forge-std/src/console.sol";
-/// @notice Minimal ERC-1967 proxy for deterministic StorageV2 deployments.
+/// @notice Minimal ERC-1967 transparent-style proxy for StorageV2 deployments
+///         that pin a fixed implementation instead of a beacon.
 contract ERC1967Proxy {
-    bytes32 internal constant IMPLEMENTATION_SLOT = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
-    bytes32 internal constant ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
+    bytes32 internal constant IMPLEMENTATION_SLOT =
+        0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
 
-    address internal owner;
+    /// @dev Must match StorageV2.PROXY_OWNER_SLOT.
+    bytes32 internal constant PROXY_OWNER_SLOT =
+        0x296ff641f9f98e0f3cffd901df5623977f5fe79518952b1b3a2d2596cf3bc2a5;
 
-    error InitializerDelegateCallBlocked();
+    error InvalidImplementation(address implementation);
+    error InvalidOwner(address owner);
 
-    constructor(uint256 accountNumber, address implementation_, bytes memory data) payable {
-        owner = msg.sender;
-        console.log("Owner: %s", owner);
-        console.log("Implementation: %s", implementation_);
-        console.log("Account Number: %s", accountNumber);
-        require(implementation_.code.length != 0, "implementation has no code");
-        if (data.length != 0) {
-            revert InitializerDelegateCallBlocked();
+    event Upgraded(address indexed implementation);
+    event ProxyOwnerInitialized(address indexed owner);
+
+    constructor(address implementation_, address owner_) payable {
+        if (implementation_ == address(0) || implementation_.code.length == 0) {
+            revert InvalidImplementation(implementation_);
         }
 
         assembly {
             sstore(IMPLEMENTATION_SLOT, implementation_)
         }
+
+        if (owner_ != address(0)) {
+            if (owner_.code.length != 0) {
+                revert InvalidOwner(owner_);
+            }
+            assembly {
+                sstore(PROXY_OWNER_SLOT, owner_)
+            }
+            emit ProxyOwnerInitialized(owner_);
+        }
+
+        emit Upgraded(implementation_);
     }
 
     function implementation() external view returns (address impl) {
@@ -33,31 +46,22 @@ contract ERC1967Proxy {
     }
 
     fallback() external payable {
-        assembly {
-            let offset := mload(0x40)
-            let impl := sload(IMPLEMENTATION_SLOT)
-            let size := calldatasize()
-            mstore(offset, size)
-            call(gas(), impl, callvalue(), 0, calldatasize(), 0, 0)
-            calldatacopy(0, 0, calldatasize())
-            let ok := delegatecall(gas(), impl, 0, calldatasize(), 0, 0)
-
-            returndatacopy(0, 0, returndatasize())
-            switch ok
-            case 0 { revert(0, returndatasize()) }
-            default { return(0, returndatasize()) }
-        }
+        _fallback();
     }
-   
+
     receive() external payable {
+        _fallback();
+    }
+
+    function _fallback() internal {
         assembly {
             let impl := sload(IMPLEMENTATION_SLOT)
-            let ok := delegatecall(gas(), impl, 0, calldatasize(), 0, 0)
-
-            returndatacopy(0, 0, returndatasize())
+            calldatacopy(0x00, 0x00, calldatasize())
+            let ok := delegatecall(gas(), impl, 0x00, calldatasize(), 0x00, 0x00)
+            returndatacopy(0x00, 0x00, returndatasize())
             switch ok
-            case 0 { revert(0, returndatasize()) }
-            default { return(0, returndatasize()) }
+            case 0 { revert(0x00, returndatasize()) }
+            default { return(0x00, returndatasize()) }
         }
     }
 }

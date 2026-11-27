@@ -42,6 +42,31 @@ python chain_checks.py
 
 `StorageV2` resolves `usdc()` / `weth()` on chain id `99901` to Elysium USDC and WHYPE. Bridge aliases in `src/bridge_to_l1.py` accept `elysium`, `elysium-testnet`, and `hyperevm`.
 
+### Optimized storage clones
+
+Deploy once per chain:
+
+1. `StorageV2` (implementation)
+2. `StorageBeacon(implementation, owner)` — your upgrade key
+3. `StorageCloneFactory(beacon)` — CREATE2 factory
+
+Then mint clones in one transaction (owner baked into `PROXY_OWNER_SLOT`, no separate init):
+
+```solidity
+factory.deployForAccount(owner, accountId);
+// or
+factory.deploy(owner, salt);
+factory.predict(owner, salt); // CREATE2 address
+```
+
+Proxy changes vs the old clone path:
+
+- No `forge-std` / console in production proxies
+- `receive()` forwards to the implementation
+- Beacon `implementation()` resolved with a tight `staticcall`
+- Dead `call` removed from `ERC1967Proxy` fallback
+- Optional owner-at-construction removes `initializeProxyOwner` for new clones
+
 ## Foundry
 
 ```shell
