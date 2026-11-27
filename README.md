@@ -67,6 +67,23 @@ Proxy changes vs the old clone path:
 - Dead `call` removed from `ERC1967Proxy` fallback
 - Optional owner-at-construction removes `initializeProxyOwner` for new clones
 
+### Token linkage (Elysium ↔ HyperEVM)
+
+```bash
+python -m src.token_linkage verify-usdc
+python -m src.token_linkage resolve --token 0xb47c… --from-chain elysium
+python -m src.token_linkage resolve --token 0xb883… --from-chain hyperevm
+python -m src.token_linkage known
+```
+
+| Class | How Moistly resolves it |
+| --- | --- |
+| Canonical representation | `l1Address()` + router `calculateL2TokenAddress` round-trip |
+| Elysium-native | `ElysiumBridgeFactory.expectedL1Mirror` (+ `l2WalletFor` for pair status) |
+| Native HYPE | Gas path has no ERC-20; **WHYPE** is a canonical rep of HyperEVM `0x555…555` |
+
+Verified mainnet: HyperEVM USDC `0xb883…630f` ↔ Elysium USDC `0xb47c…0b65`.
+
 ## Foundry
 
 ```shell
