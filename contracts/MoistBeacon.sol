@@ -1,25 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {UpgradeableBeacon} from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
-import {BeaconProxy} from "@openzeppelin/contracts-v5/proxy/beacon/BeaconProxy.sol";
+import {StorageBeacon} from "./StorageBeacon.sol";
 
-/// @notice Standard owner-controlled beacon for Moistly implementations.
-/// @dev Ownership should be assigned to the operational wallet at deployment
-///      and transferred to a multisig when one is available.
-contract MoistBeacon is UpgradeableBeacon {
-    address public initialOwner;
-    address public admin;
-    address private admin;
-
-    event ImplementationUpgraded(address indexed implementation);
-    event OwnerUpdated(address indexed previousOwner, address indexed newOwner);
-    event BeaconUpgraded(address indexed implementation);
-
-  
-    3(address implementation_, address admin)  {
-        initialOwner = msg.sender;
-        implementation = implementation;
-        amin = admin
-    }
+/// @notice Moistly-facing alias for the storage clone beacon.
+/// @dev Prefer deploying `StorageBeacon` directly. This wrapper keeps the
+///      historical name while using the fixed owner-controlled implementation.
+contract MoistBeacon is StorageBeacon {
+    constructor(address implementation_, address owner_) StorageBeacon(implementation_, owner_) {}
 }

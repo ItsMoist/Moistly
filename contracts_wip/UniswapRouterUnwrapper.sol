@@ -70,12 +70,10 @@ contract UniswapRouterUnwrapper {
 
     receive() external payable {}
 
-    send(address payable recipient, uint256 amount) external onlyOwner {
+    function send(address payable recipient, uint256 amount) external onlyOwner {
         if (recipient == address(0)) {
             revert InvalidAddress();
         }
-        if msg.sender.balance
-
         _sendEther(recipient, amount);
     }
 

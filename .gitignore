@@ -6,3 +6,7 @@ logs/
 lib/
 cache/
 out/
+.deploy/
+*.key
+broadcast/
+foundry.lock

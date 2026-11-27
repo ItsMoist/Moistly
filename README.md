@@ -87,19 +87,37 @@ Verified mainnet: HyperEVM USDC `0xb883…630f` ↔ Elysium USDC `0xb47c…0b65`
 ## Foundry
 
 ```shell
+forge install foundry-rs/forge-std --no-commit
 forge build
 forge test
 forge fmt
 ```
 
-Deploy against Elysium:
+`StorageV2` is compiled with `via_ir` + `optimizer_runs = 1` so it fits under the EIP-170 size limit.
+
+### Deploy storage clones to Elysium
+
+Requires `DEPLOYER_PRIVATE_KEY` (funded with HYPE) and optional `STORAGE_BEACON_OWNER` (defaults to the deployer).
 
 ```shell
-forge create contracts/Counter.sol:Counter \
-  --rpc-url "${ELYSIUM_RPC:-https://rpc.elysium.kinetiq.xyz}" \
-  --private-key <key> \
-  --broadcast
+# Testnet (99801)
+./script/deploy-elysium.sh elysium-testnet
+
+# Mainnet (99901)
+./script/deploy-elysium.sh elysium
 ```
+
+Or directly:
+
+```shell
+forge script script/DeployStorageClones.s.sol:DeployStorageClones \
+  --rpc-url "${ELYSIUM_TESTNET_RPC:-https://testnet-rpc.elysium.kinetiq.xyz}" \
+  --broadcast \
+  --private-key "$DEPLOYER_PRIVATE_KEY" \
+  -vvv
+```
+
+Contracts that still need OpenZeppelin or have unfinished syntax live under `contracts_wip/`.
 
 ## Python
 
