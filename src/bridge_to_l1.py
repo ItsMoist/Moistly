@@ -27,13 +27,12 @@ RHINO_BASE = "https://api.rhino.fi/bridge"
 DEFAULT_DOMAIN_NAME = "moistbandz.com"
 MAINMOIST_ADDRESS = "0x1b4C289c4f6e0565f1E432654254485c490679e9"
 DCC3_ADDRESS = "0x75e732608Bc17B23D01f01728562Ee844196DCC3"
-ADDRESS_1= "0x0000000000000000000000000000000000000001"
-8DBB_ADDRESS = ""
+ADDRESS_1 = "0x0000000000000000000000000000000000000001"
+ADDRESS_8DBB = ""
 ADDRESS_1562 = "0x33de8904812785a8828Af49770907DC27c431562"
 DOMAIN_ACCOUNTS = {
     "mainmoist": MAINMOIST_ADDRESS,
     "dcc3": DCC3_ADDRESS,
-    "8DDB":
 }
 
 log = logging.getLogger("script.bridge_to_l1")
@@ -51,6 +50,11 @@ CHAINS = {
     "avalanche": {"id": 43114, "rpc": "ALCHEMY_AVAX_RPC"},
     "bnb": {"id": 56, "rpc": "ALCHEMY_BNB_RPC"},
     "bsc": {"id": 56, "rpc": "ALCHEMY_BNB_RPC"},
+    "elysium": {"id": 99901, "rpc": "ALCHEMY_ELYSIUM_RPC"},
+    "elysium-mainnet": {"id": 99901, "rpc": "ALCHEMY_ELYSIUM_RPC"},
+    "elysium-testnet": {"id": 99801, "rpc": "ALCHEMY_ELYSIUM_TESTNET_RPC"},
+    "hyperevm": {"id": 999, "rpc": "ALCHEMY_HYPEREVM_RPC"},
+    "hyperevm-testnet": {"id": 998, "rpc": "ALCHEMY_HYPEREVM_TESTNET_RPC"},
 }
 TOKEN_ALIASES = {
     1: {
@@ -111,6 +115,14 @@ TOKEN_ALIASES = {
         "wbtc.e": "0x50b7545627a5162F82A992c33b87aDc75187B218",
         "weth.e": "0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB",
     },
+    999: {
+        "usdc": "0xb88339CB7199b77E23DB6E890353E22632Ba630f",
+    },
+    99901: {
+        "usdc": "0xb47c4C8F73F009CC0C0d3f92B388d13E293F0B65",
+        "whype": "0xbA876237B0F021A6c6D852d6c26E107997cC5E81",
+        "weth": "0xbA876237B0F021A6c6D852d6c26E107997cC5E81",
+    },
 }
 RHINO_CHAIN_ALIASES = {
     1: "ETHEREUM",
@@ -133,7 +145,7 @@ def chain_id(value: str) -> int:
 def resolve_token(value: str, chain: int) -> str:
     token = value.strip()
     key = token.lower()
-    if key in {"eth", "ether", "native", "gas", "bnb", "avax", "matic"}:
+    if key in {"eth", "ether", "native", "gas", "bnb", "avax", "matic", "hype"}:
         return NATIVE
     if key in {"zero", "0", ZERO_ADDRESS}:
         return ZERO_ADDRESS
@@ -170,6 +182,28 @@ def rpc_env_for(chain: int) -> str:
         if int(cfg["id"]) == chain:
             return str(cfg["rpc"])
     raise RuntimeError(f"No configured RPC env for chain {chain}.")
+
+
+def rpc_url_for(chain: int) -> str:
+    """Resolve an RPC URL for a chain, with Elysium/HyperEVM public fallbacks."""
+    primary = rpc_env_for(chain)
+    if os.environ.get(primary):
+        return os.environ[primary]
+
+    fallbacks = {
+        99901: ("ELYSIUM_RPC", "https://rpc.elysium.kinetiq.xyz"),
+        99801: ("ELYSIUM_TESTNET_RPC", "https://testnet-rpc.elysium.kinetiq.xyz"),
+        999: ("HYPEREVM_RPC", "https://rpc.hyperliquid.xyz/evm"),
+        998: ("HYPEREVM_TESTNET_RPC", ""),
+    }
+    if chain in fallbacks:
+        env_var, public = fallbacks[chain]
+        if os.environ.get(env_var):
+            return os.environ[env_var]
+        if public:
+            return public
+
+    raise RuntimeError(f"Missing {primary}.")
 
 
 def parse_int(value: int | str | None, default: int = 0) -> int:
@@ -467,9 +501,7 @@ def sign_and_send_transaction(tx_req: dict, key_env: str, from_chain: int, expec
     account = Account.from_key(private_key)
     if to_checksum_address(account.address) != to_checksum_address(expected_sender):
         raise RuntimeError(f"{key_env} resolves to {account.address}, not quote sender {expected_sender}.")
-    rpc_url = os.environ.get(rpc_env_for(from_chain))
-    if not rpc_url:
-        raise RuntimeError(f"Missing {rpc_env_for(from_chain)}.")
+    rpc_url = rpc_url_for(from_chain)
     web3 = Web3(Web3.HTTPProvider(rpc_url))
     tx = {
         "chainId": from_chain,

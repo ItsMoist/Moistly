@@ -61,6 +61,8 @@ contract StorageV2 {
     address public constant ARBITRUM_USDC = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
     address public constant OPTIMISM_USDC = 0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85;
     address public constant HYPEREVM_USDC = 0xb88339CB7199b77E23DB6E890353E22632Ba630f;
+    address public constant ELYSIUM_USDC = 0xb47c4C8F73F009CC0C0d3f92B388d13E293F0B65;
+    address public constant ELYSIUM_WHYPE = 0xbA876237B0F021A6c6D852d6c26E107997cC5E81;
     address public constant ETHEREUM_WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address public constant BASE_WETH = 0x4200000000000000000000000000000000000006;
     address public constant ARBITRUM_WETH = 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
@@ -511,6 +513,9 @@ contract StorageV2 {
         if (block.chainid == 999) {
             return HYPEREVM_USDC;
         }
+        if (block.chainid == 99901) {
+            return ELYSIUM_USDC;
+        }
 
         revert UnsupportedUSDCChain(block.chainid);
     }
@@ -612,6 +617,10 @@ contract StorageV2 {
         }
         if (block.chainid == 10) {
             return OPTIMISM_WETH;
+        }
+        if (block.chainid == 99901) {
+            // Wrapped native on Elysium is WHYPE (HYPE gas token).
+            return ELYSIUM_WHYPE;
         }
 
         revert UnsupportedWETHChain(block.chainid);
