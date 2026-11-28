@@ -22,7 +22,7 @@ jobs:
             chain_id: "1"
             block_number: "26510967"
           - network: Arbitrum
-            rpc_url: https://arbitrum-one-rpc.publicnode.com
+            rpc_url: https://arb1.arbitrum.io/rpc
             chain_id: "42161"
             block_number: "528178378"
     env:
