@@ -5,6 +5,10 @@ interface IERC165 {
     function supportsInterface(bytes4 interfaceId) external view returns (bool);
 }
 
+interface ISafeModuleGuardManager {
+    function setModuleGuard(address moduleGuard) external;
+}
+
 interface ISafeTransactionGuard is IERC165 {
     enum Operation {
         Call,
@@ -45,7 +49,7 @@ contract MoistSafeGuard is ISafeTransactionGuard {
     bytes4 private constant REMOVE_OWNER = 0xf8dc5dd9;
     bytes4 private constant SET_FALLBACK_HANDLER = 0xf08a0323;
     bytes4 private constant SET_GUARD = 0xe19a9dd9;
-    bytes4 private constant SET_MODULE_GUARD = 0x85e1d4e5;
+    bytes4 private constant SET_MODULE_GUARD = ISafeModuleGuardManager.setModuleGuard.selector;
     bytes4 private constant SETUP = 0xb63e800d;
     bytes4 private constant SWAP_OWNER = 0xe318b52b;
 
