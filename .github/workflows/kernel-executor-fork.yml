@@ -20,12 +20,15 @@ jobs:
           - network: Ethereum
             rpc_url: https://ethereum-rpc.publicnode.com
             chain_id: "1"
+            block_number: "26510967"
           - network: Arbitrum
             rpc_url: https://arbitrum-one-rpc.publicnode.com
             chain_id: "42161"
+            block_number: "528178378"
     env:
       KERNEL_FORK_RPC_URL: ${{ matrix.rpc_url }}
       KERNEL_FORK_CHAIN_ID: ${{ matrix.chain_id }}
+      KERNEL_FORK_BLOCK: ${{ matrix.block_number }}
     steps:
       - uses: actions/checkout@v4
         with:
