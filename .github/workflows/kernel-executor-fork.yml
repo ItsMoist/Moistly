@@ -1,0 +1,45 @@
+name: Kernel executor fork tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  adapter-fork:
+    name: Adapter fork tests (${{ matrix.network }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - network: Ethereum
+            rpc_url: https://ethereum-rpc.publicnode.com
+            chain_id: "1"
+            block_number: "26510967"
+          - network: Arbitrum
+            rpc_url: https://arb1.arbitrum.io/rpc
+            chain_id: "42161"
+            block_number: "528178378"
+    env:
+      KERNEL_FORK_RPC_URL: ${{ matrix.rpc_url }}
+      KERNEL_FORK_CHAIN_ID: ${{ matrix.chain_id }}
+      KERNEL_FORK_BLOCK: ${{ matrix.block_number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Show Forge version
+        run: forge --version
+
+      - name: Run Kernel adapter fork tests
+        run: forge test --match-path test/MoistKernelExecutorAdapter.t.sol -vvv

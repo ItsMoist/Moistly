@@ -1,0 +1,17 @@
+[profile.default]
+src = "contracts"
+test = "test"
+out = "out"
+libs = ["lib"]
+optimizer = true
+via_ir = true
+# Existing contracts that do not compile yet (syntax errors / missing imports).
+skip = ["contracts/ETHFoward.sol","contracts/MoistBeacon.sol","contracts/ProtectorMoist.sol","contracts/UniswapRouterUnwrapper.sol","contracts/ERC1967Proxy.sol","contracts/Migrations.sol","contracts/UpgradeableBeacon.sol"]
+remappings = [
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "forge-std/=lib/forge-std/src/",
+]
+
+[lint]
+# Legacy contracts use unresolvable absolute imports (e.g. EthCollector.sol), which breaks solar lint.
+lint_on_build = false
